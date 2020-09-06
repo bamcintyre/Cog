@@ -1,0 +1,146 @@
+---
+title: "Assignment Week 6 ANOVA"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r import-library}
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(rstatix)
+library(ggpubr)
+library(lsr)
+library(papaja)
+theData <- as.data.frame(read.csv("./PSYC20007_data_2020.csv"))
+str(theData)
+theData$Language.classification <- factor(theData$Language.classification, ordered = FALSE, levels = c("mono", "slc", "dlc"))
+levels(theData$Language.classification) <- c("Monolingual","Single language context","Dual language context")
+str(theData)
+```
+
+```{r descriptives}
+longData <- theData %>% 
+  pivot_longer(cols = c("Flanker.effect","No.go.accuracy"), names_to = "task", values_to = "value")
+str(longData)
+summarytable <- longData %>%
+  group_by(task, Language.classification) %>%
+  dplyr::summarise(
+    mean = mean(value),
+    sem = sd(value)/sqrt(n()),
+    sd = sd(value),
+    min = min(value),
+    max = max(value),
+    n = n()) %>%
+ungroup() 
+kable(t(summarytable)
+  , caption = "Descriptive statistics of score by language classification."
+)
+papaja::apa_table(summarytable  , caption = "Descriptive statistics of value  by language classification"
+  , note = "This table was created with apa_table()."
+  , escape = TRUE
+)
+
+
+```
+
+
+```{r check-assumptions}
+# check if we can do ANOVA
+
+levels(longData$Language.classification)
+longData %>% ggplot( aes(x=Language.classification, y=value)) + 
+    geom_violin(draw_quantiles = 1) +
+  facet_wrap(~task, scales = "free")
+
+
+flankerplot <- ggline(theData, x = "Language.classification", y = "Flanker.effect",
+       add = c("mean_ci", "jitter", "violin"), 
+     #  error.plot = "linerange",
+       order = c("Monolingual", "Single language context", "Dual language context"),
+       ylab = "Flanker effect", xlab = "Language Classification")
+ggpar(flankerplot, )
+
+longData %>% 
+  group_by(task, Language.classification) %>%
+  identify_outliers(value) %>%
+  ungroup()
+
+levels(theData$Language.classification)
+
+model.Flanker <- lm(Flanker.effect ~ Language.classification, data = theData)
+ggqqplot(residuals(model.Flanker))
+
+theData %>%
+  group_by(Language.classification) %>%
+  rstatix::shapiro_test(Flanker.effect) %>%
+  ungroup()
+
+ggqqplot(theData, "Flanker.effect", facet.by ="Language.classification",title = "QQ plot by group: Flanker effect")
+
+model.Nogo <- lm(No.go.accuracy ~ Language.classification, data = theData)
+ggqqplot(residuals(model.Nogo))
+
+theData %>%
+  group_by(Language.classification) %>%
+  rstatix::shapiro_test(No.go.accuracy) %>%
+  ungroup()
+
+ggqqplot(theData, "No.go.accuracy", facet.by ="Language.classification", title = "QQ plot by group: No-go accuracy")
+
+
+```
+
+# Homogenity of variance
+A residuals versus fits plot can be used to check the homogeneity of variances.
+ Levene's tests showing $p$ > $0.05$ show that there is no significant difference between  variances across groups.
+
+```{R homogenity}
+plot(model.Flanker, 1)
+theData %>% levene_test(Flanker.effect ~ Language.classification)
+plot(model.Nogo, 1)
+theData %>% levene_test(No.go.accuracy ~ Language.classification)
+```
+## ANOVA
+
+```{R anova}
+aov_flanker <- aov(data = theData, 
+                   formula = Flanker.effect ~ Language.classification)
+summary(aov_flanker)
+aov_nogo <- aov(data = theData, 
+                   formula = No.go.accuracy ~ Language.classification)
+summary(aov_nogo)
+aov_flankera <- apa_print(aov_flanker)
+aov_nogoa <- apa_print(aov_nogo)
+
+apa_table(list(aov_flankera$table, aov_nogoa$table), caption = "ANOVA for two dependant variables", note = "the note goes here")
+```
+
+Here we use `apa_print` to report the statistic and `eta_squared` for $\eta ^2$. Flanker: 
+`r apa_print(aov_flanker)$statistic`, $\eta ^2 = `r eta_squared(aov_flanker)`$ ; No go: `r apa_print(aov_nogo)$statistic`, $\eta ^2 = `r eta_squared(aov_nogo)`$.
+
+
+## Effect size 
+
+```{R etaSquared}
+etaSquared(aov_flanker, anova=FALSE)
+etaSquared(aov_nogo, anova=FALSE)
+```
+
+
+
+## Post Hoc Tests
+
+### Tukey (won't be used in document)
+
+```{R Tukey}
+tuk_flanker <- TukeyHSD(aov_flanker)
+tuk_flanker
+
+tuk_nogo <- TukeyHSD(aov_nogo)
+tuk_nogo
+```
+
+```
