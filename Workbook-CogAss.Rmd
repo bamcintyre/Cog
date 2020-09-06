@@ -63,6 +63,14 @@ flankerplot <- ggline(theData, x = "Language.classification", y = "Flanker.effec
        ylab = "Flanker effect", xlab = "Language Classification")
 ggpar(flankerplot, )
 
+nogoplot <- ggline(theData, x = "Language.classification", y = No.go.accuracy,
+       add = c("mean_ci", "jitter", "violin"), 
+     #  error.plot = "linerange",
+       order = c("Monolingual", "Single language context", "Dual language context"),
+       ylab = "No-go accuracy (%)", xlab = "Language Classification")
+ggpar(nogoplot, )
+
+
 longData %>% 
   group_by(task, Language.classification) %>%
   identify_outliers(value) %>%
